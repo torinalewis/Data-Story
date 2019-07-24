@@ -1,0 +1,231 @@
+---
+title: "Data Story - Draft"
+author: "Torina Lewis"
+date: "7/24/2019"
+output:
+  html_document: default
+  pdf_document: default
+---
+---
+title: "Capstone"
+author: "Torina Lewis"
+date: "7/21/2019"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+Introduction
+
+The goal of this project is to determine the effectiveness of the intervention.  After several meetings with my mentor, Dhiraj Khanna and learning the intricacies of the R ecosystem, I have decided to use propensity score matching to determine the effectiveness of the intervention.  This statistical technique matches a treatment case with one or more control cases based on the propensity score.  The propensity score is determined by the attributes that the observations have in common.  A recommendation from my mentor was to include cognitive and non-cognitive variables in the study.  The variables used are listed below:
+
+
+ 
+The necessary libraries needed for the project has been installed and are loaded here.
+
+```{r, warning=FALSE, message=FALSE}
+library(tidyverse) #The swiss knife!
+#library(haven)
+#library(sjmisc)
+#library(plyr)
+library(MatchIt)
+#library(ggplot2)
+#library(caret)
+#library(RCurl) #To read the csv file from GitHub directly
+library(rmarkdown)
+```
+
+All of the packages are loaded.  Therefore, we load the data into R and call the data frame dta.
+
+
+```{r}
+dta <- read.csv("dta.csv")
+```
+
+
+An extra variable was included in the data frame after the data was read.  Thus, the variable was removed.
+```{r}
+#dta<-select(dta, -c(X))
+```
+
+Data Wrangligling
+
+The data set was provided in a nearly cleaned manner.  However, multiple data wrangling techniques were performed on the data frame to transom it into a document that can be analyzed.  These techniques include removing unnecessary variables, changing the names of some columns, adding variables, and including functions for calculation. 
+
+Removing Unnecessary Variables:  The original data frame included 19 variables.  Some of the variables were not necessary to perform propensity score matching as they did not provide relevant information for the matching algorithm.  Removing the variables reduced the data frame to 9 variables.  Some of the variables are still irrelevant but it is necessary to map the data back to specific observations.  Therefore, the data frame does include more variables that will be used in the analysis.
+
+Changing Columns Names:  There are ten variables included in the data frame, and all variables underwent a name change.  When the data was imported into R Studio, some variables names were too long, and others did not accurately describe the particular data.  Therefore, the names of the variables were changed to shorter, concise names that accurately describe the data in the column.
+
+Adding Variables and Data:   Two variables were necessary for building the model.  A treatment column and a column that displayed standardized z scores for the final grade earned.  In the treatment column, an if-else statement was written to place a 1 for the observation that was treated and a 0 otherwise.  This information helped to accurately and easily determine the control and treatment groups.   
+
+Standardized z-score:  In the standardized z-score column, a function was written to include a standardized score for each observation in the “Score” column of the data frame.  This standardized z-score normalizes the data and has a mean of 0 and a standard deviation of 1.  It represents the signed fractional number of standard deviations by which the value of an observation or data point lies above or below the mean value of the data set that is measured.  Values above the mean have positive standard scores, while values below the mean have negative standard scores.  Adding this column increased the data frame to 10 variables.
+
+
+
+Exploratory Data Analysis
+Now that the data have been ingested it is time to begin the exploration.  The first thing to do is to have a quick look at our data.  For that, the `str()` function and the more human-readable (and intuitive), `glimpse()` function. is used.
+
+```{r}
+glimpse(dta)
+```
+
+As expected, there are 332 rows with 10 variables inside of the data set.  Additionally, the type of variables is apparent from this view.  For example, Major` is a character variable.  It may be more beneficial to change the treatment variable from a number to a factor since it determines whether a student received the treatment or not.  A factor, instead of a number seems more logical in this case.  Necessary changes will be made to the variable if the exploratory analysis dictates.  For now, we proceed with the intended analysis.  Now let's take a look of the structure of the data set to see what additional information is available.  
+---
+title: "Statistics"
+author: "Torina Lewis"
+date: "7/23/2019"
+output: html_document
+---
+
+To apply some of the knowledge that was learned from data camp, We use my clean data set from the data wrangling report and call it dta_stats.  The code below ingests the data.
+
+```{r}
+dta_stats <- read.csv("dta.csv")
+```
+
+Now, the libraries that are necessary to show the skills learned are loaded into are loaded.
+
+```{r}
+library(tidyverse)
+library(haven)
+library(sjmisc)
+library(plyr)
+library(dplyr)
+library(ggplot2)
+library(caret)
+library(markdown)
+```
+
+
+Here, we create a box plot for the standard and raw scores.
+
+```{r}
+boxplot(Std_Score~Treatment, data = dta_stats)
+boxplot(Score~Treatment, data = dta_stats)
+```
+
+
+
+
+Scatter plots are good tools to observe the relationships between variables.  This plot shows the particular grade earned by major.  The data is also divded by treatment and control groups.
+
+```{r}
+ggplot(dta_stats, aes(x = Grade, y = Major, color=factor(Treatment))) +
+  geom_point()
+```
+
+
+Here is a table of the number of students that earned a particular grade is displayed.
+
+```{r}
+table(dta_stats$Grade)
+```
+
+
+The histogram determines the major that takes the course more frequently.  It also determines the breakdown of grades by major.
+
+```{r}
+dta_hist <- ggplot(dta_stats, aes(Major))
+dta_hist + geom_bar(aes(fill=Grade), width = 0.6) + 
+  theme(axis.text.x = element_text(angle=65, vjust=0.6)) + 
+  labs(title="Frequency of Major with Earned Final Grades") 
+
+```
+
+
+
+
+It is imperative that we retrieve information for the treatment and control groups separately.  Thus the means for these groups are calculated for the outcome variable.  We also determine the number of students in each group.  The treatement group is labelled as 1 and the control group is labelled as 0.
+
+```{r}
+dta_stats %>%
+  dplyr::group_by(Treatment) %>%
+  dplyr::summarise(n_students = n(),
+            mean_Score = mean(Score),
+            std_error = sd(Score) / sqrt(n_students))
+```
+
+
+
+
+We run the same code but this time we use the standard score.  The standard score is the standard z-score.
+
+```{r}
+dta_stats %>%
+  dplyr:: group_by(Treatment) %>%
+  dplyr:: summarise(n_students = n(),
+            mean_Std_Score = mean(Std_Score),
+            std_error = sd(Std_Score) / sqrt(n_students))
+```
+
+
+
+The mean of the entire popoulation without grouping may also be useful and is calculated.
+
+```{r}
+mean(dta_stats$Score)
+
+```
+
+
+Looking at the plots that I have created, it appears that I will need to filter the data becasue some majors have extremely small numbers.  Also, I will use a t-test to compare the means of the control and treatment groups to determine if their is a difference in the means.  This information shows that the number of matheamtics majors are dismal.  Thus as a mathematics professor, it seems that something should be done to increase this number.
+
+
+Statistical Analysis
+Determine if there is a difference in means between the treatment and the control groups for the variables "Score and Std_Score."  These two values are equivalent, but there may be value in examining both.
+
+
+```{r}
+
+dta_stats %>%
+  dplyr::group_by(Treatment) %>%
+  dplyr::summarise(n_students = n(),
+            AvgScore = mean(Score),
+            std_error = sd(Score) / sqrt(n_students))
+
+
+
+#Calculate the differences in means for the standardized score "Std_Score" grouping by treatment (1) and control (0) groups for the outcome variable.
+dta_stats %>%
+  dplyr:: group_by(Treatment) %>%
+  dplyr:: summarise(n_students = n(),
+            AvgStdScore = mean(Std_Score),
+            std_error = sd(Std_Score) / sqrt(n_students))
+
+
+
+```
+
+
+
+
+There is definitely a difference in means, as shown in the tables.  A t-test can provide further analysis. Compute a t.test to determine if the difference in means is statistically significant at conventional levels of confidence.   If p is larger than 0.05, accept the null that the two means are equal.  For a smaller p-value, more confidence is given when rejecting the null hypothesis.  Again, the t-test will be completed twice, once for "Score"  and another time for the "Std_Score" variable.
+
+Recall:  Null hypotheses - the mean of the two samples are equal.    
+
+```{r}
+with(dta_stats, t.test(Std_Score ~ Treatment))
+with(dta_stats, t.test(Score ~ Treatment))
+```
+
+
+
+Just as anticipated, p < 0.05, and the null hypothesis is rejected.  We continue the project by using the "MatchIt" package to completed the propensity score matching.  
+
+Now prepare for the highlight.  Will the data be matched or not.  It's time to see.  The code for matching the data is annotated in the console using "nearest" as the method for the "MatchIt" package.  There are additional methods available with explanitations in the user guide.  A summary of the matching model is printed, and a graphical depiction of the matched data is provided.
+
+```{r}
+library(MatchIt)
+mod_match <- matchit(Treatment ~  Gender + Race + Pell + X1st.Generation,
+                     method = 'nearest', data = dta_stats)
+summary(mod_match)
+plot(mod_match)
+
+```
+
+
+
+```{r}
+mod_data <- match.data(mod_match)
+write.csv(mod_data, file = "mod_data.csv")
+```
